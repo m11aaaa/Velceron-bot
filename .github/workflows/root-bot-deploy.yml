@@ -1,0 +1,43 @@
+name: Build and deploy Root bot
+
+on:
+  push:
+    branches:
+      - fix/root-sdk-migration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build and package bot
+        run: npm run package
+
+      - name: Save package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hideouter-root-bot-package
+          path: hideouter-root-bot.pkg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload package to Root cloud
+        if: ${{ env.ROOT_AUTH_TOKEN != '' }}
+        env:
+          ROOT_AUTH_TOKEN: ${{ secrets.ROOT_AUTH_TOKEN }}
+        run: npx rootsdk upload package --file ./hideouter-root-bot.pkg --authToken "$ROOT_AUTH_TOKEN"

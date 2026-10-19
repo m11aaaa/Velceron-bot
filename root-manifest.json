@@ -1,0 +1,43 @@
+{
+  "id": "ADHy9PMKjwmAAr5BEWHChA",
+  "version": "1.0.1",
+  "package": {
+    "server": {
+      "launch": "dist/main.js",
+      "deploy": ["dist"],
+      "nodeModules": ["node_modules"]
+    }
+  },
+  "settings": {
+    "groups": [
+      {
+        "key": "general",
+        "title": "Moderation",
+        "items": [
+          {
+            "key": "moderators",
+            "title": "Moderators",
+            "description": "Select the community members and roles allowed to use Velceron moderation commands.",
+            "required": true,
+            "confirmation": "Save",
+            "roleOrMember": {
+              "selectBehavior": "roleMultiAndUserMulti",
+              "userIds": [],
+              "communityRoleIds": []
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "community": {
+      "createBan": true,
+      "manageBans": true,
+      "kick": true
+    },
+    "channel": {
+      "createMessage": true
+    }
+  }
+}

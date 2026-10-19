@@ -1,11 +1,16 @@
 {
-  "name": "hideout-bot",
+  "name": "velceron-root-bot",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "description": "Velceron Bot - public Root community moderation bot",
+  "engines": { "node": ">=22" },
+  "dependencies": { "@rootsdk/server-bot": "^0.21.3" },
+  "devDependencies": { "@rootsdk/dev-tools": "^0.21.3", "typescript": "^5.8.2" },
   "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "ws": "^8.18.0"
+    "build": "tsc",
+    "clean": "node clean.js",
+    "bot": "rootsdk start devhost",
+    "start": "rootsdk start devhost",
+    "package": "npm run build && rootsdk build package --output-file ./velceron-bot.pkg"
   }
 }

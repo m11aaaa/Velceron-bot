@@ -1,11 +1,22 @@
 {
-  "name": "hideout-bot",
+  "name": "hideouter-root-bot",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
+  "private": true,
+  "description": "Hideouter Root community setup bot",
+  "engines": {
+    "node": ">=22"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "@rootsdk/server-bot": "^0.21.3"
+  },
+  "devDependencies": {
+    "@rootsdk/dev-tools": "^0.21.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node clean.js",
+    "bot": "rootsdk start devhost",
+    "start": "rootsdk start devhost"
   }
 }

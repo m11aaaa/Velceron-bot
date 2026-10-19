@@ -27,3 +27,8 @@ Required permissions are declared in `root-manifest.json`.
 The GitHub Actions workflow builds a package and saves it as an artifact. If you add a repository secret named `ROOT_AUTH_TOKEN`, the workflow will also attempt to upload the package to Root's cloud. This is a deployment upload, not the same thing as publishing/unlocking the app in the Root Store.
 
 The bot's test environment also needs a valid `DEV_TOKEN` and `SETUP_ALLOWED_USER_ID`. Do not put secrets in source files.
+
+
+## CI status
+
+The GitHub Actions workflow builds the bot package on pushes to `fix/root-sdk-migration`. If `ROOT_AUTH_TOKEN` is available as a repository secret, it also attempts the Root cloud upload. Check the workflow run to confirm the upload step itself succeeded.

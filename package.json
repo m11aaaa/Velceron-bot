@@ -17,6 +17,7 @@
     "build": "tsc",
     "clean": "node clean.js",
     "bot": "rootsdk start devhost",
-    "start": "rootsdk start devhost"
+    "start": "rootsdk start devhost",
+    "package": "npm run build && rootsdk build package --output-file ./hideouter-root-bot.pkg"
   }
 }

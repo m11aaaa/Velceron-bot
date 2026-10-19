@@ -12,6 +12,8 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    env:
+      ROOT_AUTH_TOKEN: ${{ secrets.ROOT_AUTH_TOKEN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -20,7 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -38,6 +39,4 @@ jobs:
 
       - name: Upload package to Root cloud
         if: ${{ env.ROOT_AUTH_TOKEN != '' }}
-        env:
-          ROOT_AUTH_TOKEN: ${{ secrets.ROOT_AUTH_TOKEN }}
         run: npx rootsdk upload package --file ./hideouter-root-bot.pkg --authToken "$ROOT_AUTH_TOKEN"

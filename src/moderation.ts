@@ -153,9 +153,17 @@ async function handleMessage(event: ChannelMessageCreatedEvent): Promise<void> {
 
 async function isConfiguredModerator(userId: UserGuid): Promise<boolean> {
   try {
-    const moderators = rootServer.globalSettings.general.moderators;
+    const settings = rootServer.globalSettings;
+    if (!settings) return false;
+
+    const moderators = settings.general?.moderators as unknown as
+      | { isMember?: (request: { userId: UserGuid }) => Promise<boolean> }
+      | undefined;
+
+    if (typeof moderators?.isMember !== "function") return false;
     return await moderators.isMember({ userId });
   } catch {
+    // Fail closed if settings have not been configured or are unavailable.
     return false;
   }
 }

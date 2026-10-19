@@ -21,7 +21,7 @@ def create_server_structure(community_id):
     
     for cat in categories:
         cat_res = requests.post(f"{BASE_URL}/communities/{community_id}/categories", headers=headers, json={"name": cat["name"]})
-        if cat_res.status_code in:
+        if cat_res.status_code == 201:
             cat_id = cat_res.json().get("id")
             for chan in cat["channels"]:
                 requests.post(f"{BASE_URL}/communities/{community_id}/channels", headers=headers, json={"name": chan, "category_id": cat_id, "type": "text"})

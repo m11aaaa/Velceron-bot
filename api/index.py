@@ -1,20 +1,20 @@
-import os
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-# Haal je server-ID op. Vul deze in bij de instellingen op Vercel!
-COMMUNITY_ID = os.environ.get("COMMUNITY_ID")
-ROOT_TOKEN = os.environ.get("ROOT_TOKEN")
+# Jouw unieke Root server-ID direct in de code ingevuld!
+COMMUNITY_ID = "ADHzNr2IgAqyIXl_bVxvjw"
+ROOT_TOKEN = "hier_jouw_token" # Dit pakt Vercel dadelijk uit je Environment Variables
+
 BASE_URL = "https://rootapp.com"
 
-headers = {
-    "Authorization": f"Bearer {ROOT_TOKEN}",
-    "Content-Type": "application/json"
-}
-
 def create_server_structure():
+    headers = {
+        "Authorization": f"Bearer {ROOT_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
     categories = [
         {"name": "📢 INFO CENTER", "channels": ["welcome", "rules", "announcements"]},
         {"name": "🛋️ THE LOUNGE", "channels": ["main-chat", "memes", "media", "food-porn"]},
@@ -23,7 +23,7 @@ def create_server_structure():
     
     for cat in categories:
         cat_res = requests.post(f"{BASE_URL}/communities/{COMMUNITY_ID}/categories", headers=headers, json={"name": cat["name"]})
-        if cat_res.status_code in:
+        if cat_res.status_code == 201 or cat_res.status_code == 200:
             cat_id = cat_res.json().get("id")
             for chan in cat["channels"]:
                 requests.post(f"{BASE_URL}/communities/{COMMUNITY_ID}/channels", headers=headers, json={"name": chan, "category_id": cat_id, "type": "text"})
@@ -43,3 +43,6 @@ def home():
         return "🎉 THE HIDEOUT SOCIETY IS SUCCESVOL GEBOUWD, BRO!", 200
     except Exception as e:
         return f"Oeps, foutje: {str(e)}", 500
+
+if __name__ == '__main__':
+    app.run()

@@ -1,9 +1,9 @@
 import { rootServer, RootBotStartState } from "@rootsdk/server-bot";
-import { initializeSetup } from "./setup";
+import { initializeModeration } from "./moderation";
 
 async function onStarting(_state: RootBotStartState): Promise<void> {
-  initializeSetup();
-  console.log("Hideouter Root Bot started.");
+  initializeModeration();
+  console.log("Velceron Bot started.");
 }
 
 (async () => {

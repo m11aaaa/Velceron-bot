@@ -9,7 +9,7 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-const gatewayUrl = 'wss://://rootapp.com';
+const gatewayUrl = 'wss://gateway.rootapp.gg/v1';
 const ws = new WebSocket(gatewayUrl, {
   headers: { 'Authorization': `Bearer ${BOT_TOKEN}` }
 });

@@ -150,7 +150,81 @@ function parseCommand(content: string): string[] | null {
   return parts;
 }
 
-async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
+
+type StoredTicket = { channelId: string; creatorId: string; createdAt: string; status: "open" | "closed" };
+const TICKETS_KEY = "velceron.tickets.v1";
+
+async function createTicket(channelId: ChannelGuid, userId: UserGuid): Promise<void> {
+  const settings = await loadSettings();
+  const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
+  if (!settings.modules.tickets) { await reply(channelId, "The ticket module is disabled."); return; }
+  if (!setup?.groupId) { await reply(channelId, "Run /setup first to create Velceron's private channels."); return; }
+  const tickets = (await rootServer.dataStore.appData.get<StoredTicket[]>(TICKETS_KEY)) ?? [];
+  const existing = tickets.find((ticket) => ticket.creatorId === userId && ticket.status === "open");
+  if (existing) { await reply(channelId, "You already have an open ticket: [Open ticket](root://channel/" + existing.channelId + ")"); return; }
+  const access = [
+    ...new Set([setup.ownerId, userId, ...(setup.allowedUserIds ?? [])])
+  ].map((id: string) => ({ roleOrMemberId: id, overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true } }));
+  for (const roleId of setup.staffRoleIds ?? []) access.push({ roleOrMemberId: roleId, overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true } } as any);
+  const ticketChannel = await rootServer.community.channels.create({
+    channelGroupId: setup.groupId,
+    name: "ticket-" + String(userId).slice(-8).toLowerCase(),
+    description: "Private support ticket",
+    channelType: 1,
+    useChannelGroupPermission: false,
+    accessRuleCreates: access,
+  } as any);
+  tickets.push({ channelId: ticketChannel.id, creatorId: userId, createdAt: new Date().toISOString(), status: "open" });
+  await rootServer.dataStore.appData.set({ key: TICKETS_KEY, value: tickets });
+  const staffMentions = settings.ticket.pingStaff ? (setup.staffRoleIds ?? []).map((id: string) => "[@Staff](root://role/" + id + ")").join(" ") : "";
+  await reply(ticketChannel.id, "**" + settings.ticket.title + "**\n" + settings.ticket.description +
+    "\n\nTicket owner: [Member](root://user/" + userId + ")\nUse `/ticket close` to close this ticket.\n" + staffMentions);
+  await reply(channelId, "Your private ticket was created: [Open ticket](root://channel/" + ticketChannel.id + ")");
+}
+
+async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<void> {
+  const tickets = (await rootServer.dataStore.appData.get<StoredTicket[]>(TICKETS_KEY)) ?? [];
+  const ticket = tickets.find((item) => item.channelId === channelId && item.status === "open");
+  if (!ticket) { await reply(channelId, "This is not an open Velceron ticket."); return; }
+  const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
+  const isStaff = setup && (setup.ownerId === userId || await isCommunityManager(userId) ||
+    (setup.allowedUserIds ?? []).includes(userId) ||
+    (await rootServer.community.communityMembers.get({ userId }).catch(() => null))?.communityRoleIds?.some((id: string) => (setup.staffRoleIds ?? []).includes(id)));
+  if (ticket.creatorId !== userId && !isStaff) { await reply(channelId, "Only the ticket owner or configured staff can close this ticket."); return; }
+  const listed = await rootServer.community.channelMessages.list({
+    channelId, dateAt: new Date(), messageDirectionTake: 2, limit: 100,
+  } as any);
+  const lines = (listed.messages ?? []).slice().reverse().map((message: any) =>
+    "[" + (message.createdAt ? new Date(message.createdAt).toISOString() : "time unknown") + "] " +
+    String(message.userId ?? "System") + ": " + String(message.messageContent ?? "").replace(/\r/g, ""));
+  const transcript = ("Velceron ticket transcript\nChannel: " + channelId + "\nCreator: " + ticket.creatorId + "\n\n" + lines.join("\n")).slice(0, 12000);
+  await rootServer.dataStore.appData.set({ key: TICKETS_KEY, value: tickets.map((item) => item.channelId === channelId ? { ...item, status: "closed" } : item) });
+  await reply(channelId, "🔒 Ticket closed. Transcript has been prepared.");
+  const settings = await loadSettings();
+  if (settings.ticket.sendTranscriptToLogs) {
+    const logId = settings.ticket.logChannelId || setup?.logsChannelId;
+    if (logId) await reply(logId as ChannelGuid, "```text\n" + transcript.replace(/```/g, "'''") + "\n```");
+    else await logTechnicalError("Transcript-to-logs is enabled but no log channel is configured.");
+  }
+  if (settings.ticket.sendTranscriptToCreator) {
+    try {
+      await rootServer.community.notifications.send({
+        title: "Your ticket has been closed",
+        description: "Your Velceron ticket is closed. The transcript remains available in the ticket channel.",
+        userIds: [ticket.creatorId as UserGuid],
+      });
+    } catch (error) { console.error("Ticket close notification failed:", error); }
+  }
+}
+
+async function logTechnicalError(message: string): Promise<void> {
+  const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
+  if (setup?.logsChannelId) {
+    try { await reply(setup.logsChannelId as ChannelGuid, "⚠️ **Technical error**\n" + message.slice(0, 1500)); }
+    catch (error) { console.error("Could not post technical log:", error); }
+  }
+}
+\nasync function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   if (evt.messageType !== MessageType.UserMessage) return;
 
   const args = parseCommand(evt.messageContent);
@@ -216,6 +290,8 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
 
       case "ticket":
       case "tickets": {
+        if (subcommand === "open") { await createTicket(evt.channelId, evt.userId); return; }
+        if (subcommand === "close") { await closeTicket(evt.channelId, evt.userId); return; }
         const settings = await loadSettings();
         if (!settings.modules.tickets && subcommand !== "save") {
           await reply(evt.channelId, "The ticket module is currently disabled. A community manager can enable it with `/settings enable tickets`.");
@@ -384,9 +460,11 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         return;
       }
 
-      case "logs":
-        await reply(evt.channelId, "**Velceron Logs**\nTechnical errors are recorded in the bot runtime logs. A private in-community log channel will be connected in the next setup stage.");
+      case "logs": {
+        const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
+        await reply(evt.channelId, setup?.logsChannelId ? "Technical errors are posted in [velceron-logs](root://channel/" + setup.logsChannelId + ")." : "Run /setup to create the private technical logs channel.");
         return;
+      }
 
       default:
         await reply(evt.channelId, "Unknown command. Use `/help` to see the available commands.");

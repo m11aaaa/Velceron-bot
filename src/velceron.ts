@@ -82,9 +82,15 @@ async function reply(channelId: ChannelGuid, content: string): Promise<void> {
 
 async function loadSettings(): Promise<BotSettings> {
   const stored = await rootServer.dataStore.appData.get<BotSettings>(SETTINGS_KEY);
-  return stored ?? {
-    modules: { ...DEFAULT_SETTINGS.modules },
-    ticket: { ...DEFAULT_SETTINGS.ticket },
+  if (!stored) {
+    return {
+      modules: { ...DEFAULT_SETTINGS.modules },
+      ticket: { ...DEFAULT_SETTINGS.ticket },
+    };
+  }
+  return {
+    modules: { ...DEFAULT_SETTINGS.modules, ...stored.modules },
+    ticket: { ...DEFAULT_SETTINGS.ticket, ...stored.ticket },
   };
 }
 
@@ -231,7 +237,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
 
         if (subcommand === "title" || subcommand === "description" || subcommand === "button") {
           if (!value) {
-            await reply(evt.channelId, "Please provide text. Example: /tickets " + subcommand + " Your text here");
+            await reply(evt.channelId, "Please provide text. Example: /ticket " + subcommand + " Your text here");
             return;
           }
           if (value.length > 500) {
@@ -254,7 +260,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           }
           draft.pingStaff = mode === "on";
           await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, "Draft updated: staff ping is " + (draft.pingStaff ? "ON" : "OFF") + ". Use /tickets save to apply it.");
+          await reply(evt.channelId, "Draft updated: staff ping is " + (draft.pingStaff ? "ON" : "OFF") + ". Use /ticket save to apply it.");
           return;
         }
 
@@ -291,7 +297,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           return;
         }
 
-        await reply(evt.channelId, "Unknown tickets option. Use `/ticket` to see the template and available options.");
+        await reply(evt.channelId, "Unknown ticket option. Use `/ticket` to see the template and available options.");
         return;
       }
 

@@ -55,6 +55,7 @@ const HELP_TEXT = [
   "`/settings` — view enabled modules",
   "`/settings enable <module>` — enable a module",
   "`/settings disable <module>` — disable a module",
+  "`/settings save` — save module changes",
   "`/tickets` — view the current ticket template",
   "`/tickets title <text>` — edit the panel title",
   "`/tickets description <text>` — edit the panel description",
@@ -168,7 +169,9 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         }
 
         if (subcommand === "save") {
-          await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: draftSettings });
+          const currentSettings = await loadSettings();
+          currentSettings.modules = { ...draftSettings.modules };
+          await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: currentSettings });
           await rootServer.dataStore.appData.delete(SETTINGS_DRAFT_KEY);
           await reply(evt.channelId, "✅ Settings saved. Your choices will persist after a bot restart.");
           return;

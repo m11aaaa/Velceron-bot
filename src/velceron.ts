@@ -245,7 +245,8 @@ async function logTechnicalError(message: string): Promise<void> {
     catch (error) { console.error("Could not post technical log:", error); }
   }
 }
-\nasync function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
+
+async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   if (evt.messageType !== MessageType.UserMessage) return;
 
   const args = parseCommand(evt.messageContent);

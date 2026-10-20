@@ -222,7 +222,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           }
           draft.pingStaff = mode === "on";
           await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, `Draft updated: staff ping is ${draft.pingStaff ? "ON" : "OFF"}. Use `/tickets save` to apply it.`);
+          await reply(evt.channelId, "Draft updated: staff ping is " + (draft.pingStaff ? "ON" : "OFF") + ". Use /tickets save to apply it.");
           return;
         }
 

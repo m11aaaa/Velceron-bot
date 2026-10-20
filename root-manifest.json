@@ -1,0 +1,20 @@
+{
+  "id": "REPLACE_WITH_VELCERON_BOT_ID_FROM_ROOT_DEVELOPER_PORTAL",
+  "version": "1.0.0",
+  "package": {
+    "server": {
+      "launch": "dist/main.js",
+      "deploy": [
+        "dist"
+      ],
+      "nodeModules": [
+        "node_modules"
+      ]
+    }
+  },
+  "permissions": {
+    "channel": {
+      "createMessage": true
+    }
+  }
+}

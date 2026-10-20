@@ -263,8 +263,8 @@ async function logTechnicalError(message: string): Promise<void> {
           return;
         }
 
-        if (!await isCommunityManager(evt.userId)) {
-          await reply(evt.channelId, "You need community-management permissions to change Velceron settings.");
+        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
+          await reply(evt.channelId, "Only the setup owner or configured staff can change Velceron settings.");
           return;
         }
 
@@ -310,8 +310,8 @@ async function logTechnicalError(message: string): Promise<void> {
           return;
         }
 
-        if (!await isCommunityManager(evt.userId)) {
-          await reply(evt.channelId, "You need community-management permissions to change ticket settings.");
+        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
+          await reply(evt.channelId, "Only the setup owner or configured staff can change ticket settings.");
           return;
         }
 

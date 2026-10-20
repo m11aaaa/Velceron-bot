@@ -27,6 +27,7 @@ type BotSettings = {
 
 const SETTINGS_KEY = "velceron.settings.v1";
 const DRAFT_KEY = "velceron.ticket-draft.v1";
+const SETTINGS_DRAFT_KEY = "velceron.settings-draft.v1";
 
 const DEFAULT_SETTINGS: BotSettings = {
   modules: { tickets: true, moderation: true, welcome: false, logs: true },
@@ -75,6 +76,11 @@ async function loadSettings(): Promise<BotSettings> {
     modules: { ...DEFAULT_SETTINGS.modules },
     ticket: { ...DEFAULT_SETTINGS.ticket },
   };
+}
+
+async function loadSettingsDraft(settings: BotSettings): Promise<BotSettings> {
+  const draft = await rootServer.dataStore.appData.get<BotSettings>(SETTINGS_DRAFT_KEY);
+  return draft ?? { modules: { ...settings.modules }, ticket: { ...settings.ticket } };
 }
 
 async function loadDraft(settings: BotSettings): Promise<TicketSettings> {
@@ -149,18 +155,27 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
 
       case "settings": {
         const settings = await loadSettings();
-        if (!subcommand) {
-          await reply(evt.channelId, formatSettings(settings));
-          return;
-        }
+        const draftSettings = await loadSettingsDraft(settings);
 
-        if (!["enable", "disable"].includes(subcommand)) {
-          await reply(evt.channelId, "Usage: `/settings enable <module>` or `/settings disable <module>`.");
+        if (!subcommand) {
+          await reply(evt.channelId, formatSettings(draftSettings) + "\n\nChanges are drafts until you use `/settings save`.");
           return;
         }
 
         if (!await isCommunityManager(evt.userId)) {
           await reply(evt.channelId, "You need community-management permissions to change Velceron settings.");
+          return;
+        }
+
+        if (subcommand === "save") {
+          await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: draftSettings });
+          await rootServer.dataStore.appData.delete(SETTINGS_DRAFT_KEY);
+          await reply(evt.channelId, "✅ Settings saved. Your choices will persist after a bot restart.");
+          return;
+        }
+
+        if (!["enable", "disable"].includes(subcommand)) {
+          await reply(evt.channelId, "Usage: `/settings enable <module>`, `/settings disable <module>`, or `/settings save`.");
           return;
         }
 
@@ -171,9 +186,9 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           return;
         }
 
-        settings.modules[moduleKey] = subcommand === "enable";
-        await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: settings });
-        await reply(evt.channelId, `Saved: module **${moduleName}** is now ${settings.modules[moduleKey] ? "ON" : "OFF"}.`);
+        draftSettings.modules[moduleKey] = subcommand === "enable";
+        await rootServer.dataStore.appData.set({ key: SETTINGS_DRAFT_KEY, value: draftSettings });
+        await reply(evt.channelId, "Draft updated: module **" + moduleName + "** is " + (draftSettings.modules[moduleKey] ? "ON" : "OFF") + ". Use /settings save to apply it.");
         return;
       }
 

@@ -126,6 +126,20 @@ async function isCommunityManager(userId: UserGuid): Promise<boolean> {
   }
 }
 
+
+async function isStaffOrOwner(userId: UserGuid, setup: any): Promise<boolean> {
+  if (!setup) return isCommunityManager(userId);
+  if (setup.ownerId === userId || await isCommunityManager(userId)) return true;
+  if ((setup.allowedUserIds ?? []).includes(userId)) return true;
+  try {
+    const member = await rootServer.community.communityMembers.get({ userId });
+    return (member.communityRoleIds ?? []).some((id: string) => (setup.staffRoleIds ?? []).includes(id));
+  } catch (error) {
+    console.error("Unable to verify configured staff access:", error);
+    return false;
+  }
+}
+
 function formatSettings(settings: BotSettings): string {
   const modules = Object.entries(settings.modules)
     .map(([name, enabled]) => `• **${name}**: ${enabled ? "ON" : "OFF"}`)

@@ -442,7 +442,51 @@ async function logTechnicalError(message: string): Promise<void> {
           return;
         }
         if (kind === "save") {
-          await reply(evt.channelId, "Staff choices are saved. For channels already created, add the newly selected roles/members in Root's channel permissions; new channels use the saved list. Access-rule replacement for existing channels is not yet automatic.");
+          const channelIds = [state.commandsChannelId, state.helpChannelId, state.logsChannelId].filter(Boolean);
+          const previousRoles: string[] = state.appliedStaffRoleIds ?? [];
+          const previousUsers: string[] = state.appliedAllowedUserIds ?? [];
+          const nextRoles: string[] = state.staffRoleIds ?? [];
+          const nextUsers: string[] = state.allowedUserIds ?? [];
+          const adds = [
+            ...nextRoles.filter((id) => !previousRoles.includes(id)),
+            ...nextUsers.filter((id) => !previousUsers.includes(id))
+          ];
+          const removes = [
+            ...previousRoles.filter((id) => !nextRoles.includes(id)),
+            ...previousUsers.filter((id) => !nextUsers.includes(id))
+          ];
+          let failed = 0;
+          for (const targetChannelId of channelIds) {
+            for (const id of adds) {
+              try {
+                await rootServer.community.accessRules.create({
+                  channelOrChannelGroupId: targetChannelId,
+                  roleOrMemberId: id,
+                  overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true }
+                } as any);
+              } catch (error) {
+                // Existing rules are fine; report other failures without stopping the remaining rules.
+                if (!String(error).toLowerCase().includes("alreadyexists") && !String(error).toLowerCase().includes("already exists")) {
+                  failed++;
+                  console.error("Could not grant Velceron channel access:", error);
+                }
+              }
+            }
+            for (const id of removes) {
+              try {
+                await rootServer.community.accessRules.delete({ channelOrChannelGroupId: targetChannelId, roleOrMemberId: id } as any);
+              } catch (error) {
+                failed++;
+                console.error("Could not remove Velceron channel access:", error);
+              }
+            }
+          }
+          state.appliedStaffRoleIds = [...nextRoles];
+          state.appliedAllowedUserIds = [...nextUsers];
+          await rootServer.dataStore.appData.set({ key, value: state });
+          await reply(evt.channelId, failed
+            ? "Staff choices were saved, but " + failed + " access change(s) failed. Check the technical logs and the channel permissions."
+            : "✅ Staff access saved and applied to all three private Velceron channels. These choices persist after a restart.");
           return;
         }
         if (!["role", "member"].includes(kind) || !["add", "remove"].includes(action) || !id) {

@@ -8,8 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "bot": "rootsdk start devhost",
-    "clean": "node clean.js"
+    "bot": "rootsdk start devhost"
   },
   "dependencies": {
     "@rootsdk/server-bot": "*"

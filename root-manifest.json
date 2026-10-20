@@ -4,17 +4,21 @@
   "package": {
     "server": {
       "launch": "dist/main.js",
-      "deploy": [
-        "dist"
-      ],
-      "nodeModules": [
-        "node_modules"
-      ]
+      "deploy": ["dist"],
+      "nodeModules": ["node_modules"]
     }
   },
   "permissions": {
+    "community": {
+      "createChannelGroup": true,
+      "manageCommunity": true
+    },
     "channel": {
-      "createMessage": true
+      "fullControl": true,
+      "createMessage": true,
+      "viewMessageHistory": true,
+      "createFile": true,
+      "createMessageAttachment": true
     }
   }
 }

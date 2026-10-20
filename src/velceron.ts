@@ -13,6 +13,9 @@ type TicketSettings = {
   description: string;
   buttonText: string;
   pingStaff: boolean;
+  sendTranscriptToCreator: boolean;
+  sendTranscriptToLogs: boolean;
+  logChannelId: string;
 };
 
 type BotSettings = {
@@ -36,6 +39,9 @@ const DEFAULT_SETTINGS: BotSettings = {
     description: "Click below to open a support ticket.",
     buttonText: "Open a ticket",
     pingStaff: true,
+    sendTranscriptToCreator: true,
+    sendTranscriptToLogs: false,
+    logChannelId: "",
   },
 };
 
@@ -56,12 +62,15 @@ const HELP_TEXT = [
   "`/settings enable <module>` — enable a module",
   "`/settings disable <module>` — disable a module",
   "`/settings save` — save module changes",
-  "`/tickets` — view the current ticket template",
-  "`/tickets title <text>` — edit the panel title",
-  "`/tickets description <text>` — edit the panel description",
-  "`/tickets button <text>` — edit the button text",
-  "`/tickets ping on|off` — choose whether staff should be pinged",
-  "`/tickets save` — save the ticket template",
+  "`/ticket` — view the ticket settings",
+  "`/ticket title <text>` — edit the panel title",
+  "`/ticket description <text>` — edit the panel description",
+  "`/ticket button <text>` — edit the button text",
+  "`/ticket ping on|off` — choose whether staff should be pinged",
+  "`/ticket transcript-user on|off` — send the transcript to the ticket creator",
+  "`/ticket transcript-logs on|off` — send the transcript to the selected log channel",
+  "`/ticket log-channel <channel-id>` — choose the transcript log channel",
+  "`/ticket save` — save the ticket settings",
   "",
   "Configuration changes are restricted to members with community-management permissions.",
 ].join("\n");
@@ -118,9 +127,13 @@ function formatTicket(ticket: TicketSettings): string {
     `**Title:** ${ticket.title}\n` +
     `**Description:** ${ticket.description}\n` +
     `**Button:** ${ticket.buttonText}\n` +
-    `**Ping staff on ticket creation:** ${ticket.pingStaff ? "ON" : "OFF"}\n\n` +
-    "Edit with `/tickets title`, `/tickets description`, `/tickets button` or `/tickets ping on|off`. " +
-    "Use `/tickets save` to publish these draft settings.";
+    `**Ping staff on ticket creation:** ${ticket.pingStaff ? "ON" : "OFF"}\n` +
+    `**Send transcript to ticket creator:** ${ticket.sendTranscriptToCreator ? "ON" : "OFF"}\n` +
+    `**Send transcript to log channel:** ${ticket.sendTranscriptToLogs ? "ON" : "OFF"}\n` +
+    `**Transcript log channel ID:** ${ticket.logChannelId || "Not selected"}\n\n` +
+    "Edit with `/ticket title`, `/ticket description`, `/ticket button`, `/ticket ping on|off`, " +
+    "`/ticket transcript-user on|off`, `/ticket transcript-logs on|off`, or `/ticket log-channel <channel-id>`. " +
+    "Use `/ticket save` to save the settings.";
 }
 
 function parseCommand(content: string): string[] | null {
@@ -195,6 +208,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         return;
       }
 
+      case "ticket":
       case "tickets": {
         const settings = await loadSettings();
         if (!settings.modules.tickets && subcommand !== "save") {
@@ -228,19 +242,44 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           if (subcommand === "description") draft.description = value;
           if (subcommand === "button") draft.buttonText = value;
           await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, "Draft updated. Review it with `/tickets` and apply it with `/tickets save`.");
+          await reply(evt.channelId, "Draft updated. Review it with `/ticket` and apply it with `/ticket save`.");
           return;
         }
 
         if (subcommand === "ping") {
           const mode = (args[2] ?? "").toLowerCase();
           if (mode !== "on" && mode !== "off") {
-            await reply(evt.channelId, "Usage: `/tickets ping on` or `/tickets ping off`.");
+            await reply(evt.channelId, "Usage: `/ticket ping on` or `/ticket ping off`.");
             return;
           }
           draft.pingStaff = mode === "on";
           await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
           await reply(evt.channelId, "Draft updated: staff ping is " + (draft.pingStaff ? "ON" : "OFF") + ". Use /tickets save to apply it.");
+          return;
+        }
+
+        if (subcommand === "transcript-user" || subcommand === "transcript-logs") {
+          const mode = (args[2] ?? "").toLowerCase();
+          if (mode !== "on" && mode !== "off") {
+            await reply(evt.channelId, `Usage: /ticket ${subcommand} on|off`);
+            return;
+          }
+          if (subcommand === "transcript-user") draft.sendTranscriptToCreator = mode === "on";
+          else draft.sendTranscriptToLogs = mode === "on";
+          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
+          await reply(evt.channelId, `Draft updated: ${subcommand} is ${mode.toUpperCase()}. Use /ticket save to apply it.`);
+          return;
+        }
+
+        if (subcommand === "log-channel") {
+          const channelId = (args[2] ?? "").trim();
+          if (!channelId) {
+            await reply(evt.channelId, "Usage: /ticket log-channel <channel-id>. Use the ID of a channel the bot can access.");
+            return;
+          }
+          draft.logChannelId = channelId;
+          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
+          await reply(evt.channelId, "Draft updated: transcript log channel selected. Review with /ticket and apply with /ticket save.");
           return;
         }
 
@@ -252,7 +291,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           return;
         }
 
-        await reply(evt.channelId, "Unknown tickets option. Use `/tickets` to see the template and available options.");
+        await reply(evt.channelId, "Unknown tickets option. Use `/ticket` to see the template and available options.");
         return;
       }
 

@@ -4,17 +4,16 @@
   "package": {
     "server": {
       "launch": "dist/main.js",
-      "deploy": [
-        "dist"
-      ],
-      "nodeModules": [
-        "node_modules"
-      ]
+      "deploy": ["dist"],
+      "nodeModules": ["node_modules"]
     }
   },
   "permissions": {
+    "community": {
+      "createChannelGroup": true
+    },
     "channel": {
-      "createMessage": true
+      "fullControl": true
     }
   }
 }

@@ -301,16 +301,88 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         return;
       }
 
-      case "setup":
-        await reply(
-          evt.channelId,
-          "**Velceron Setup**\n\nThe next setup stage will create the private commands, help, and logs channels. Automatic private-channel creation is not enabled yet; it will be added after the owner/staff access rules are verified."
-        );
+      case "setup": {
+        if (!await isCommunityManager(evt.userId)) {
+          await reply(evt.channelId, "Only a community manager can run the initial setup.");
+          return;
+        }
+        const key = "velceron.setup.v1";
+        let state = await rootServer.dataStore.appData.get<any>(key);
+        if (state?.commandsChannelId && state?.helpChannelId && state?.logsChannelId) {
+          await reply(evt.channelId, "Velceron channels already exist. Use /staff to configure staff access.");
+          return;
+        }
+        state = state ?? { ownerId: evt.userId, staffRoleIds: [], allowedUserIds: [], groupId: "", commandsChannelId: "", helpChannelId: "", logsChannelId: "" };
+        state.ownerId = evt.userId;
+        await rootServer.dataStore.appData.set({ key, value: state });
+        try {
+          const group = state.groupId ? { id: state.groupId } : await rootServer.community.channelGroups.create({ name: "Velceron", accessRuleCreates: [] });
+          state.groupId = group.id;
+          await rootServer.dataStore.appData.set({ key, value: state });
+          const accessRules = () => [
+            ...[state.ownerId, ...state.allowedUserIds].map((id: string) => ({ roleOrMemberId: id, overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true } })),
+            ...state.staffRoleIds.map((id: string) => ({ roleOrMemberId: id, overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true } }))
+          ];
+          const makeChannel = async (name: string, description: string) => (await rootServer.community.channels.create({
+            channelGroupId: state.groupId, name, description, channelType: 1, useChannelGroupPermission: false, accessRuleCreates: accessRules()
+          } as any)).id;
+          if (!state.commandsChannelId) state.commandsChannelId = await makeChannel("velceron-commands", "Private Velceron commands and configuration.");
+          await rootServer.dataStore.appData.set({ key, value: state });
+          if (!state.helpChannelId) state.helpChannelId = await makeChannel("velceron-help", "Help and setup troubleshooting.");
+          await rootServer.dataStore.appData.set({ key, value: state });
+          if (!state.logsChannelId) state.logsChannelId = await makeChannel("velceron-logs", "Private technical errors and setup diagnostics.");
+          await rootServer.dataStore.appData.set({ key, value: state });
+          await reply(state.commandsChannelId, "**Velceron Control Room**\nUse /staff to choose which roles and individual members can see these private channels.\n\n" + HELP_TEXT);
+          await reply(state.helpChannelId, "**Velceron Help**\nUse /help for commands. Technical failures are recorded in velceron-logs.");
+          await reply(evt.channelId, "Setup complete: private commands, help, and logs channels have been created.");
+        } catch (error) {
+          console.error("Velceron setup failed:", error);
+          await reply(evt.channelId, "Setup failed. Check bot permissions and runtime logs, then run /setup again. Partial progress was saved to avoid unnecessary duplicates.");
+        }
         return;
+      }
 
-      case "staff":
-        await reply(evt.channelId, "**Staff settings**\nStaff-role selection will be added in the next setup stage. Role names will not be hard-coded.");
+      case "staff": {
+        const key = "velceron.setup.v1";
+        const state = await rootServer.dataStore.appData.get<any>(key);
+        if (!state) {
+          await reply(evt.channelId, "Run /setup first. A community manager must initialize Velceron.");
+          return;
+        }
+        const allowed = await isCommunityManager(evt.userId) || state.ownerId === evt.userId ||
+          state.allowedUserIds.includes(evt.userId) ||
+          (await rootServer.community.communityMembers.get({ userId: evt.userId }).catch(() => null))?.communityRoleIds?.some((id: string) => state.staffRoleIds.includes(id));
+        if (!allowed) {
+          await reply(evt.channelId, "Only the setup owner, community managers, or configured staff can change access.");
+          return;
+        }
+        const kind = (args[1] ?? "").toLowerCase();
+        const action = (args[2] ?? "").toLowerCase();
+        const id = (args[3] ?? "").trim();
+        if (!kind) {
+          await reply(evt.channelId, "**Staff Access**\nRole IDs: " + (state.staffRoleIds.join(", ") || "none") +
+            "\nIndividual member IDs: " + (state.allowedUserIds.join(", ") || "none") +
+            "\n\n/staff role add <role-id>\n/staff role remove <role-id>\n/staff member add <user-id>\n/staff member remove <user-id>\n/staff save");
+          return;
+        }
+        if (kind === "save") {
+          await reply(evt.channelId, "Staff choices are saved. For channels already created, add the newly selected roles/members in Root's channel permissions; new channels use the saved list. Access-rule replacement for existing channels is not yet automatic.");
+          return;
+        }
+        if (!["role", "member"].includes(kind) || !["add", "remove"].includes(action) || !id) {
+          await reply(evt.channelId, "Usage: /staff role add <role-id>, /staff role remove <role-id>, /staff member add <user-id>, /staff member remove <user-id>, or /staff save.");
+          return;
+        }
+        const list: string[] = kind === "role" ? state.staffRoleIds : state.allowedUserIds;
+        if (action === "add" && !list.includes(id)) list.push(id);
+        if (action === "remove") {
+          const index = list.indexOf(id);
+          if (index >= 0) list.splice(index, 1);
+        }
+        await rootServer.dataStore.appData.set({ key, value: state });
+        await reply(evt.channelId, "Saved draft: " + kind + " " + action + " " + id + ". Use /staff save when finished.");
         return;
+      }
 
       case "logs":
         await reply(evt.channelId, "**Velceron Logs**\nTechnical errors are recorded in the bot runtime logs. A private in-community log channel will be connected in the next setup stage.");

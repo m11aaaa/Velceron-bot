@@ -10,15 +10,10 @@
   },
   "permissions": {
     "community": {
-      "createChannelGroup": true,
-      "manageCommunity": true
+      "createChannelGroup": true
     },
     "channel": {
-      "fullControl": true,
-      "createMessage": true,
-      "viewMessageHistory": true,
-      "createFile": true,
-      "createMessageAttachment": true
+      "fullControl": true
     }
   }
 }

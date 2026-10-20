@@ -1,11 +1,22 @@
 {
-  "name": "hideout-bot",
+  "name": "velceron-bot",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "description": "Velceron Root Bot built with the official Root SDK",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node index.js"
+    "build": "tsc",
+    "bot": "rootsdk start devhost",
+    "clean": "node clean.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "@rootsdk/server-bot": "*"
+  },
+  "devDependencies": {
+    "@rootsdk/dev-tools": "*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.8.2"
   }
 }

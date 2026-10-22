@@ -272,7 +272,7 @@ async function logAuditEvent(message: string): Promise<void> {
     if (!settings.modules.logs) return;
     const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
     if (!setup?.logsChannelId) return;
-    await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\\n" + message.slice(0, 1500));
+    await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\n" + message.slice(0, 1500));
   } catch (error) { console.error("Could not write audit log:", error); }
 }
 async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {

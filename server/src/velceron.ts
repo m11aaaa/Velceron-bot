@@ -259,14 +259,19 @@ async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<vo
         description: "Your ticket is closed. You can still view the transcript in the ticket channel.",
         userIds: [ticket.creatorId as UserGuid],
       });
+    } catch (error) {
+      console.error("Ticket close notification failed:", error);
+      await logTechnicalError("Ticket close notification failed for " + channelId + ": " + String(error));
+    }
+    try {
       await rootServer.community.accessRules.edit({
         channelOrChannelGroupId: channelId,
         roleOrMemberId: ticket.creatorId,
         overlay: { channelView: true, channelCreateMessage: false, channelViewMessageHistory: true },
       } as any);
     } catch (error) {
-      console.error("Ticket transcript delivery or lock failed:", error);
-      await logTechnicalError("Ticket transcript delivery or lock failed for " + channelId + ": " + String(error));
+      console.error("Could not lock closed ticket:", error);
+      await logTechnicalError("Could not lock closed ticket " + channelId + ": " + String(error));
     }
   } else {
     try {

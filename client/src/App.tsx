@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { velceronConfigServiceClient } from "@velceron/gen-client";
 import { GetSettingsRequest, GetSettingsResponse, SaveSettingsRequest } from "@velceron/gen-shared";
 

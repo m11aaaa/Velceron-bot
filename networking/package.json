@@ -1,0 +1,6 @@
+{
+  "name": "@velceron/networking",
+  "scripts": {
+    "build": "rootsdk build proto"
+  }
+}

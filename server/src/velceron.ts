@@ -251,15 +251,16 @@ async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<vo
     try {
       await rootServer.community.notifications.send({
         title: "Your ticket transcript",
-        description: ("Your Velceron ticket is closed. Transcript:\\n" + transcript).slice(0, 1800),
+        description: "Your ticket is closed. You can still view the transcript in the ticket channel.",
         userIds: [ticket.creatorId as UserGuid],
       });
     } catch (error) { console.error("Ticket transcript notification failed:", error); }
   }
   try {
-    await rootServer.community.accessRules.delete({
+    await rootServer.community.accessRules.edit({
       channelOrChannelGroupId: channelId,
       roleOrMemberId: ticket.creatorId,
+      overlay: { channelView: true, channelCreateMessage: false, channelViewMessageHistory: true },
     } as any);
   } catch (error) {
     console.error("Could not revoke creator access to closed ticket:", error);

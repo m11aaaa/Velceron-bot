@@ -3,7 +3,7 @@ import { velceronConfigServiceClient } from "@velceron/gen-client";
 import { GetSettingsRequest, GetSettingsResponse, SaveSettingsRequest } from "@velceron/gen-shared";
 
 type Settings = GetSettingsResponse;
-const defaults: Settings = { tickets:true, moderation:true, welcome:false, logs:true, ticketTitle:"Need help?", ticketDescription:"Click below to open a support ticket.", ticketButtonText:"Open a ticket", pingStaff:true, transcriptToCreator:true, transcriptToLogs:false, logChannelId:"" };
+const defaults: Settings = { tickets:true, moderation:true, welcome:false, logs:true, ticketTitle:"Need help?", ticketDescription:"Click below to open a support ticket.", ticketButtonText:"Open a ticket", pingStaff:true, transcriptToCreator:true, transcriptToLogs:false, logChannelId:"", welcomeMessage:"Welcome {user} to {community}!", welcomeChannelId:"" };
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(defaults);
@@ -42,6 +42,11 @@ export default function App() {
       <div className="panel"><div className="fields"><label>Panel title<input value={settings.ticketTitle} maxLength={120} onChange={e=>set("ticketTitle",e.target.value)} /></label><label>Button text<input value={settings.ticketButtonText} maxLength={80} onChange={e=>set("ticketButtonText",e.target.value)} /></label><label className="wide">Description<textarea value={settings.ticketDescription} maxLength={1000} rows={3} onChange={e=>set("ticketDescription",e.target.value)} /></label><label className="wide">Transcript log channel ID <input value={settings.logChannelId} placeholder="Optional channel ID" onChange={e=>set("logChannelId",e.target.value)} /><small>Used when transcript delivery to logs is enabled.</small></label></div>
       <div className="options"><h3>Ticket behavior</h3>{toggle("pingStaff","Ping configured staff when a ticket opens")}{toggle("transcriptToCreator","Send transcript notice to the ticket creator")}{toggle("transcriptToLogs","Send transcript to the selected log channel")}</div>
       <div className="preview"><div className="preview-label">LIVE PREVIEW</div><h3>{settings.ticketTitle || "Your ticket title"}</h3><p>{settings.ticketDescription || "Your ticket description will appear here."}</p><button type="button" className="preview-button">{settings.ticketButtonText || "Open a ticket"}</button></div></div>
+      <div className="section-heading"><div><h2>Welcome messages</h2><p>Send a greeting when a person joins your community.</p></div><span className="pill">OPTIONAL</span></div>
+      <div className="panel"><div className="fields">
+        <label className="wide">Welcome channel ID<input value={settings.welcomeChannelId} placeholder="Channel ID where welcome messages should be posted" onChange={e=>set("welcomeChannelId",e.target.value)} /></label>
+        <label className="wide">Welcome message<textarea value={settings.welcomeMessage} maxLength={1800} rows={3} onChange={e=>set("welcomeMessage",e.target.value)} /></label>
+      </div><p className="footnote">Available placeholders: {"{user}"} and {"{community}"}. Enable the Welcome messages module above, choose a channel ID, and click Save.</p></div>
       <footer><p className="message">{status}</p><button className="save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save changes"} <span>→</span></button></footer>
       <p className="footnote">Velceron • Settings are stored by the app server. Use /setup in your community to initialize private channels.</p>
     </section>

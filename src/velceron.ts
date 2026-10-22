@@ -6,7 +6,7 @@ import {
   ChannelGuid,
   UserGuid,
   MessageType,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 
 type TicketSettings = {
   title: string;

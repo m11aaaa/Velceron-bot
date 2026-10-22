@@ -219,6 +219,7 @@ async function createTicket(channelId: ChannelGuid, userId: UserGuid): Promise<v
   await reply(ticketChannel.id, "**" + settings.ticket.title + "**\n" + settings.ticket.description +
     "\n\nTicket owner: [Member](root://user/" + userId + ")\nUse `/ticket close` to close this ticket.\n" + staffMentions);
   await reply(channelId, "Your private ticket was created: [Open ticket](root://channel/" + ticketChannel.id + ")");
+  await logAuditEvent("Ticket opened: channel " + ticketChannel.id + "; creator " + userId);
 }
 
 async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<void> {
@@ -239,6 +240,7 @@ async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<vo
   const transcript = ("Velceron ticket transcript\nChannel: " + channelId + "\nCreator: " + ticket.creatorId + "\n\n" + lines.join("\n")).slice(0, 12000);
   await rootServer.dataStore.appData.set({ key: TICKETS_KEY, value: tickets.map((item) => item.channelId === channelId ? { ...item, status: "closed" } : item) });
   await reply(channelId, "🔒 Ticket closed. Transcript has been prepared.");
+  await logAuditEvent("Ticket closed: channel " + channelId + "; creator " + ticket.creatorId + "; closed by " + userId);
   const settings = await loadSettings();
   if (settings.ticket.sendTranscriptToLogs) {
     const logId = settings.ticket.logChannelId || setup?.logsChannelId;
@@ -264,7 +266,7 @@ async function logTechnicalError(message: string): Promise<void> {
   }
 }
 
-async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
+async function logAuditEvent(message: string): Promise<void> {\n  try {\n    const settings = await loadSettings();\n    if (!settings.modules.logs) return;\n    const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");\n    if (!setup?.logsChannelId) return;\n    await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\\n" + message.slice(0, 1500));\n  } catch (error) { console.error("Could not write audit log:", error); }\n}\nasync function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   if (evt.messageType !== MessageType.UserMessage) return;
 
   const args = parseCommand(evt.messageContent);
@@ -349,15 +351,15 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
             const reason = args.slice(3).join(" ").trim().slice(0, 256) || "No reason provided";
             await rootServer.community.communityMemberBans.create({ userId: targetId as ModerationUserGuid, reason });
             await reply(evt.channelId, "Member banned. Reason: " + reason);
-            await logTechnicalError("Moderation action: ban; user " + targetId + "; by " + evt.userId + "; reason: " + reason);
+            await logAuditEvent("Ban: user " + targetId + "; by " + evt.userId + "; reason: " + reason);
           } else if (action === "kick") {
             await rootServer.community.communityMemberBans.kick({ userId: targetId as ModerationUserGuid });
             await reply(evt.channelId, "Member kicked. They can rejoin with an invite.");
-            await logTechnicalError("Moderation action: kick; user " + targetId + "; by " + evt.userId);
+            await logAuditEvent("Kick: user " + targetId + "; by " + evt.userId);
           } else {
             await rootServer.community.communityMemberBans.delete({ userId: targetId as ModerationUserGuid });
             await reply(evt.channelId, "Ban removed. The member must rejoin using an invite.");
-            await logTechnicalError("Moderation action: unban; user " + targetId + "; by " + evt.userId);
+            await logAuditEvent("Unban: user " + targetId + "; by " + evt.userId);
           }
         } catch (error) {
           console.error("Moderation action failed:", error);

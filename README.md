@@ -1,27 +1,21 @@
-# Velceron Bot
+# Velceron — Root App
 
-Velceron is a server-only Root Bot built with the official `@rootsdk/server-bot` SDK.
+Velceron is being converted from the original bot project into a Root App with a built-in settings interface.
 
-## Commands
+## Current app workspace
+- `client/`: React settings interface with module toggles, ticket-template fields, behavior options, live preview, and a single Save button.
+- `server/`: Root app server, existing community commands, ticket workflow, and settings RPC service.
+- `networking/`: Root SDK protocol definition connecting the settings UI to the server.
+- `root-manifest.json`: Root App manifest using the new app ID.
 
-- `/velceron help`
-- `/velceron ping`
-- `/velceron info`
-- `/velceron settings`
-- `/velceron setup`
+## Initial setup
+1. Build using the Root SDK DevKit workflow for apps.
+2. Install the app in a test community first.
+3. Run `/setup` in the community to create private command, help, and technical log channels.
+4. Open the app settings interface and test saving configuration.
+5. Test ticket creation, permissions, ticket closing, and transcript delivery with a non-admin test account before using it in a live community.
 
-The bot also accepts `!velceron` as a text-command fallback.
+## Important status
+This branch is an in-progress migration. The settings UI and RPC scaffold have been added, but a successful build and in-Root runtime test are still required. The moderation and welcome switches are configuration flags; they do not yet represent a complete moderation/welcome feature set. Do not replace the working bot on `main` until the app branch passes tests.
 
-## Important setup requirement
-
-Before building or packaging, replace the placeholder `id` in `root-manifest.json` with the Bot ID assigned to this project in the Root Developer Portal. Do not reuse the separate dashboard App ID.
-
-## Local test
-
-1. Install Node.js 22 or newer.
-2. Run `npm install`.
-3. Create a local `.env` file based on `.env.example` and set your Root `DEV_TOKEN`. Never commit the real token.
-4. Run `npm run build`.
-5. Run `npm run bot`.
-
-The bot needs channel visibility and the ability to create messages in the channels where you test it. The manifest currently requests only the `channel.createMessage` permission.
+The app uses the Root app ID configured in `root-manifest.json`. Keep credentials and local environment files out of Git.

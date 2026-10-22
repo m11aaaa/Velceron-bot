@@ -2,7 +2,7 @@
   "name": "velceron-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Velceron Root Bot built with the official Root SDK",
+  "description": "Velceron Bot Root App built with the official Root SDK",
   "engines": {
     "node": ">=22"
   },
@@ -11,7 +11,7 @@
     "bot": "rootsdk start devhost"
   },
   "dependencies": {
-    "@rootsdk/server-bot": "*"
+    "@rootsdk/server-app": "*"
   },
   "devDependencies": {
     "@rootsdk/dev-tools": "*",

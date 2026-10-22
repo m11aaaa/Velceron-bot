@@ -67,35 +67,27 @@ const MODULE_NAMES: Record<string, keyof BotSettings["modules"]> = {
 const HELP_TEXT = [
   "**Velceron Bot — Help**",
   "",
-  "`/help` — show available commands",
-  "`/ping` — check whether the bot is responding",
-  "`/info` — information about Velceron",
-  "`/settings` — view enabled modules",
-  "`/settings enable <module>` — enable a module",
-  "`/settings disable <module>` — disable a module",
-  "`/settings save` — save module changes",
-  "`/setup` — create private commands, help, and logs channels",
-  "`/staff` — configure roles and individual members who can access private channels",
-  "`/staff role add <role-id>` / `/staff role remove <role-id>`",
-  "`/staff member add <user-id>` / `/staff member remove <user-id>`",
-  "`/staff save` — apply access changes",
-  "`/moderation ban <user-id> [reason]` — ban a member",
-  "`/moderation kick <user-id>` — remove a member without banning",
-  "`/moderation unban <user-id>` — remove an active ban (the user must rejoin)",
-  "`/welcome` — show welcome message setup guidance",
-  "`/ticket open` — create a private support ticket",
-  "`/ticket close` — close a ticket and create a transcript",
-  "`/ticket` — view the ticket settings",
-  "`/ticket title <text>` — edit the panel title",
-  "`/ticket description <text>` — edit the panel description",
-  "`/ticket button <text>` — edit the button text",
-  "`/ticket ping on|off` — choose whether staff should be pinged",
-  "`/ticket transcript-user on|off` — send the transcript to the ticket creator",
-  "`/ticket transcript-logs on|off` — send the transcript to the selected log channel",
-  "`/ticket log-channel <channel-id>` — choose the transcript log channel",
-  "`/ticket save` — save the ticket settings",
+  "Open Velceron Bot App to configure modules, ticket templates, transcript options, and welcome messages. Click Save changes in the app; /settings save and /ticket save are no longer needed.",
   "",
-  "Configuration changes are restricted to members with community-management permissions.",
+  "/help — show the current command guide",
+  "/ping — check whether Velceron is responding",
+  "/info — information about Velceron",
+  "/setup — create the private commands, help, and technical logs channels",
+  "/ticket open — create a private support ticket",
+  "/ticket close — close the current ticket and prepare its transcript",
+  "/moderation ban <user-id> [reason] — ban a member",
+  "/moderation kick <user-id> — remove a member without banning",
+  "/moderation unban <user-id> — remove an active ban",
+  "/welcome — view welcome setup guidance; edit welcome settings in the app",
+  "/logs — find the technical logs channel",
+  "",
+  "Private-channel staff access",
+  "/staff — view configured staff access",
+  "/staff role add <role-id> / /staff role remove <role-id>",
+  "/staff member add <user-id> / /staff member remove <user-id>",
+  "Staff access changes apply immediately; no /staff save command is needed.",
+  "",
+  "Only the setup owner, community managers, and configured staff can use restricted commands."
 ].join("\n");
 
 async function reply(channelId: ChannelGuid, content: string): Promise<void> {
@@ -300,6 +292,52 @@ async function logAuditEvent(message: string): Promise<void> {
     await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\n" + message.slice(0, 1500));
   } catch (error) { console.error("Could not write audit log:", error); }
 }
+async function applyStaffAccessChanges(state: any): Promise<number> {
+  const key = "velceron.setup.v1";
+  const channelIds = [state.commandsChannelId, state.helpChannelId, state.logsChannelId].filter(Boolean);
+  const previousRoles: string[] = state.appliedStaffRoleIds ?? [];
+  const previousUsers: string[] = state.appliedAllowedUserIds ?? [];
+  const nextRoles: string[] = state.staffRoleIds ?? [];
+  const nextUsers: string[] = state.allowedUserIds ?? [];
+  const adds = [
+    ...nextRoles.filter((id) => !previousRoles.includes(id)),
+    ...nextUsers.filter((id) => !previousUsers.includes(id))
+  ];
+  const removes = [
+    ...previousRoles.filter((id) => !nextRoles.includes(id)),
+    ...previousUsers.filter((id) => !nextUsers.includes(id))
+  ];
+  let failed = 0;
+  for (const targetChannelId of channelIds) {
+    for (const id of adds) {
+      try {
+        await rootServer.community.accessRules.create({
+          channelOrChannelGroupId: targetChannelId,
+          roleOrMemberId: id,
+          overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true }
+        } as any);
+      } catch (error) {
+        if (!String(error).toLowerCase().includes("alreadyexists") && !String(error).toLowerCase().includes("already exists")) {
+          failed++;
+          console.error("Could not grant Velceron channel access:", error);
+        }
+      }
+    }
+    for (const id of removes) {
+      try {
+        await rootServer.community.accessRules.delete({ channelOrChannelGroupId: targetChannelId, roleOrMemberId: id } as any);
+      } catch (error) {
+        failed++;
+        console.error("Could not remove Velceron channel access:", error);
+      }
+    }
+  }
+  state.appliedStaffRoleIds = [...nextRoles];
+  state.appliedAllowedUserIds = [...nextUsers];
+  await rootServer.dataStore.appData.set({ key, value: state });
+  return failed;
+}
+
 async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   if (evt.messageType !== MessageType.UserMessage) return;
 
@@ -323,46 +361,9 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         await reply(evt.channelId, "**Velceron Bot**\nA configurable Root community bot.\nPersistent settings are enabled.");
         return;
 
-      case "settings": {
-        const settings = await loadSettings();
-        const draftSettings = await loadSettingsDraft(settings);
-
-        if (!subcommand) {
-          await reply(evt.channelId, formatSettings(draftSettings) + "\n\nChanges are drafts until you use `/settings save`.");
-          return;
-        }
-
-        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
-          await reply(evt.channelId, "Only the setup owner or configured staff can change Velceron settings.");
-          return;
-        }
-
-        if (subcommand === "save") {
-          const currentSettings = await loadSettings();
-          currentSettings.modules = { ...draftSettings.modules };
-          await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: currentSettings });
-          await rootServer.dataStore.appData.delete(SETTINGS_DRAFT_KEY);
-          await reply(evt.channelId, "✅ Settings saved. Your choices will persist after a bot restart.");
-          return;
-        }
-
-        if (!["enable", "disable"].includes(subcommand)) {
-          await reply(evt.channelId, "Usage: `/settings enable <module>`, `/settings disable <module>`, or `/settings save`.");
-          return;
-        }
-
-        const moduleName = (args[2] ?? "").toLowerCase();
-        const moduleKey = MODULE_NAMES[moduleName];
-        if (!moduleKey) {
-          await reply(evt.channelId, "Available modules: tickets, moderation, welcome, logs.");
-          return;
-        }
-
-        draftSettings.modules[moduleKey] = subcommand === "enable";
-        await rootServer.dataStore.appData.set({ key: SETTINGS_DRAFT_KEY, value: draftSettings });
-        await reply(evt.channelId, "Draft updated: module **" + moduleName + "** is " + (draftSettings.modules[moduleKey] ? "ON" : "OFF") + ". Use /settings save to apply it.");
+      case "settings":
+        await reply(evt.channelId, "Module settings are now managed in Velceron Bot App. Open the app, change the options, and click Save changes. You no longer need /settings save.");
         return;
-      }
 
       case "moderation": {
         const settings = await loadSettings();
@@ -407,88 +408,7 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
       case "tickets": {
         if (subcommand === "open") { await createTicket(evt.channelId, evt.userId); return; }
         if (subcommand === "close") { await closeTicket(evt.channelId, evt.userId); return; }
-        const settings = await loadSettings();
-        if (!settings.modules.tickets && subcommand !== "save") {
-          await reply(evt.channelId, "The ticket module is currently disabled. A community manager can enable it with `/settings enable tickets`.");
-          return;
-        }
-
-        if (!subcommand) {
-          await reply(evt.channelId, formatTicket(await loadDraft(settings)));
-          return;
-        }
-
-        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
-          await reply(evt.channelId, "Only the setup owner or configured staff can change ticket settings.");
-          return;
-        }
-
-        const draft = await loadDraft(settings);
-        const value = args.slice(2).join(" ").trim();
-
-        if (subcommand === "title" || subcommand === "description" || subcommand === "button") {
-          if (!value) {
-            await reply(evt.channelId, "Please provide text. Example: /ticket " + subcommand + " Your text here");
-            return;
-          }
-          if (value.length > 500) {
-            await reply(evt.channelId, "Please keep each text field under 500 characters.");
-            return;
-          }
-          if (subcommand === "title") draft.title = value;
-          if (subcommand === "description") draft.description = value;
-          if (subcommand === "button") draft.buttonText = value;
-          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, "Draft updated. Review it with `/ticket` and apply it with `/ticket save`.");
-          return;
-        }
-
-        if (subcommand === "ping") {
-          const mode = (args[2] ?? "").toLowerCase();
-          if (mode !== "on" && mode !== "off") {
-            await reply(evt.channelId, "Usage: `/ticket ping on` or `/ticket ping off`.");
-            return;
-          }
-          draft.pingStaff = mode === "on";
-          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, "Draft updated: staff ping is " + (draft.pingStaff ? "ON" : "OFF") + ". Use /ticket save to apply it.");
-          return;
-        }
-
-        if (subcommand === "transcript-user" || subcommand === "transcript-logs") {
-          const mode = (args[2] ?? "").toLowerCase();
-          if (mode !== "on" && mode !== "off") {
-            await reply(evt.channelId, `Usage: /ticket ${subcommand} on|off`);
-            return;
-          }
-          if (subcommand === "transcript-user") draft.sendTranscriptToCreator = mode === "on";
-          else draft.sendTranscriptToLogs = mode === "on";
-          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, `Draft updated: ${subcommand} is ${mode.toUpperCase()}. Use /ticket save to apply it.`);
-          return;
-        }
-
-        if (subcommand === "log-channel") {
-          const channelId = (args[2] ?? "").trim();
-          if (!channelId) {
-            await reply(evt.channelId, "Usage: /ticket log-channel <channel-id>. Use the ID of a channel the bot can access.");
-            return;
-          }
-          draft.logChannelId = channelId;
-          await rootServer.dataStore.appData.set({ key: DRAFT_KEY, value: draft });
-          await reply(evt.channelId, "Draft updated: transcript log channel selected. Review with /ticket and apply with /ticket save.");
-          return;
-        }
-
-        if (subcommand === "save") {
-          settings.ticket = draft;
-          await rootServer.dataStore.appData.set({ key: SETTINGS_KEY, value: settings });
-          await rootServer.dataStore.appData.delete(DRAFT_KEY);
-          await reply(evt.channelId, "✅ Ticket template saved. These settings will persist after a bot restart.");
-          return;
-        }
-
-        await reply(evt.channelId, "Unknown ticket option. Use `/ticket` to see the template and available options.");
+        await reply(evt.channelId, "Ticket title, description, button text, staff pings, transcripts, and related options are now managed in Velceron Bot App. Open the app and click Save changes when finished. Use /ticket open and /ticket close for ticket actions; /ticket save is no longer needed.");
         return;
       }
 
@@ -500,7 +420,11 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         const key = "velceron.setup.v1";
         let state = await rootServer.dataStore.appData.get<any>(key);
         if (state?.commandsChannelId && state?.helpChannelId && state?.logsChannelId) {
-          await reply(evt.channelId, "Velceron channels already exist. Use /staff to configure staff access.");
+          await reply(state.commandsChannelId, "**Velceron Control Room — Updated guide**\n" +
+            "Configure modules, ticket templates, transcript options, and welcome messages in Velceron Bot App. Staff access changes apply immediately.\n\n" + HELP_TEXT);
+          await reply(state.helpChannelId, "**Velceron Help — Updated guide**\n" +
+            "App settings are managed in Velceron Bot App. Use /help for the current command list. Technical failures are recorded in the private logs channel.\n\n" + HELP_TEXT);
+          await reply(evt.channelId, "Velceron setup is already complete. I refreshed the guide in the existing commands and help channels without creating duplicate channels.");
           return;
         }
         state = state ?? { ownerId: evt.userId, staffRoleIds: [], allowedUserIds: [], groupId: "", commandsChannelId: "", helpChannelId: "", logsChannelId: "" };
@@ -523,8 +447,10 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           await rootServer.dataStore.appData.set({ key, value: state });
           if (!state.logsChannelId) state.logsChannelId = await makeChannel("velceron-logs", "Private technical errors and setup diagnostics.");
           await rootServer.dataStore.appData.set({ key, value: state });
-          await reply(state.commandsChannelId, "**Velceron Control Room**\nUse /staff to choose which roles and individual members can see these private channels.\n\n" + HELP_TEXT);
-          await reply(state.helpChannelId, "**Velceron Help**\nUse /help for commands. Technical failures are recorded in velceron-logs.");
+          await reply(state.commandsChannelId, "**Velceron Control Room**\n" +
+            "Configure modules and ticket/welcome settings in Velceron Bot App. Use /staff for private-channel access; those changes apply immediately.\n\n" + HELP_TEXT);
+          await reply(state.helpChannelId, "**Velceron Help**\n" +
+            "Open Velceron Bot App to configure modules and settings. Use /help for the current command guide. Technical failures are recorded in velceron-logs.\n\n" + HELP_TEXT);
           await reply(evt.channelId, "Setup complete: private commands, help, and logs channels have been created.");
         } catch (error) {
           console.error("Velceron setup failed:", error);
@@ -540,6 +466,8 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           await reply(evt.channelId, "Run /setup first. A community manager must initialize Velceron.");
           return;
         }
+        state.staffRoleIds = state.staffRoleIds ?? [];
+        state.allowedUserIds = state.allowedUserIds ?? [];
         const allowed = await isCommunityManager(evt.userId) || state.ownerId === evt.userId ||
           state.allowedUserIds.includes(evt.userId) ||
           (await rootServer.community.communityMembers.get({ userId: evt.userId }).catch(() => null))?.communityRoleIds?.some((id: string) => state.staffRoleIds.includes(id));
@@ -550,64 +478,23 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         const kind = (args[1] ?? "").toLowerCase();
         const action = (args[2] ?? "").toLowerCase();
         const id = (args[3] ?? "").trim();
+
         if (!kind) {
           await reply(evt.channelId, "**Staff Access**\nRole IDs: " + (state.staffRoleIds.join(", ") || "none") +
             "\nIndividual member IDs: " + (state.allowedUserIds.join(", ") || "none") +
-            "\n\n/staff role add <role-id>\n/staff role remove <role-id>\n/staff member add <user-id>\n/staff member remove <user-id>\n/staff save");
+            "\n\n/staff role add <role-id>\n/staff role remove <role-id>\n/staff member add <user-id>\n/staff member remove <user-id>" +
+            "\n\nChanges are applied immediately. No save command is needed.");
           return;
         }
         if (kind === "save") {
-          const channelIds = [state.commandsChannelId, state.helpChannelId, state.logsChannelId].filter(Boolean);
-          const previousRoles: string[] = state.appliedStaffRoleIds ?? [];
-          const previousUsers: string[] = state.appliedAllowedUserIds ?? [];
-          const nextRoles: string[] = state.staffRoleIds ?? [];
-          const nextUsers: string[] = state.allowedUserIds ?? [];
-          const adds = [
-            ...nextRoles.filter((id) => !previousRoles.includes(id)),
-            ...nextUsers.filter((id) => !previousUsers.includes(id))
-          ];
-          const removes = [
-            ...previousRoles.filter((id) => !nextRoles.includes(id)),
-            ...previousUsers.filter((id) => !nextUsers.includes(id))
-          ];
-          let failed = 0;
-          for (const targetChannelId of channelIds) {
-            for (const id of adds) {
-              try {
-                await rootServer.community.accessRules.create({
-                  channelOrChannelGroupId: targetChannelId,
-                  roleOrMemberId: id,
-                  overlay: { channelView: true, channelCreateMessage: true, channelViewMessageHistory: true }
-                } as any);
-              } catch (error) {
-                // Existing rules are fine; report other failures without stopping the remaining rules.
-                if (!String(error).toLowerCase().includes("alreadyexists") && !String(error).toLowerCase().includes("already exists")) {
-                  failed++;
-                  console.error("Could not grant Velceron channel access:", error);
-                }
-              }
-            }
-            for (const id of removes) {
-              try {
-                await rootServer.community.accessRules.delete({ channelOrChannelGroupId: targetChannelId, roleOrMemberId: id } as any);
-              } catch (error) {
-                failed++;
-                console.error("Could not remove Velceron channel access:", error);
-              }
-            }
-          }
-          state.appliedStaffRoleIds = [...nextRoles];
-          state.appliedAllowedUserIds = [...nextUsers];
-          await rootServer.dataStore.appData.set({ key, value: state });
-          await reply(evt.channelId, failed
-            ? "Staff choices were saved, but " + failed + " access change(s) failed. Check the technical logs and the channel permissions."
-            : "✅ Staff access saved and applied to all three private Velceron channels. These choices persist after a restart.");
+          await reply(evt.channelId, "Staff access changes are now applied immediately when you add or remove a role/member. You no longer need /staff save.");
           return;
         }
         if (!["role", "member"].includes(kind) || !["add", "remove"].includes(action) || !id) {
-          await reply(evt.channelId, "Usage: /staff role add <role-id>, /staff role remove <role-id>, /staff member add <user-id>, /staff member remove <user-id>, or /staff save.");
+          await reply(evt.channelId, "Usage: /staff role add <role-id>, /staff role remove <role-id>, /staff member add <user-id>, or /staff member remove <user-id>. Changes apply immediately.");
           return;
         }
+
         const list: string[] = kind === "role" ? state.staffRoleIds : state.allowedUserIds;
         if (action === "add" && !list.includes(id)) list.push(id);
         if (action === "remove") {
@@ -615,7 +502,10 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
           if (index >= 0) list.splice(index, 1);
         }
         await rootServer.dataStore.appData.set({ key, value: state });
-        await reply(evt.channelId, "Saved draft: " + kind + " " + action + " " + id + ". Use /staff save when finished.");
+        const failed = await applyStaffAccessChanges(state);
+        await reply(evt.channelId, failed
+          ? "The staff list was updated, but " + failed + " channel access change(s) failed. Check the technical logs."
+          : "Staff " + kind + " " + action + " was applied to the private Velceron channels immediately.");
         return;
       }
 

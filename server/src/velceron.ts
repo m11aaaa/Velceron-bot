@@ -266,7 +266,16 @@ async function logTechnicalError(message: string): Promise<void> {
   }
 }
 
-async function logAuditEvent(message: string): Promise<void> {\n  try {\n    const settings = await loadSettings();\n    if (!settings.modules.logs) return;\n    const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");\n    if (!setup?.logsChannelId) return;\n    await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\\n" + message.slice(0, 1500));\n  } catch (error) { console.error("Could not write audit log:", error); }\n}\nasync function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
+async function logAuditEvent(message: string): Promise<void> {
+  try {
+    const settings = await loadSettings();
+    if (!settings.modules.logs) return;
+    const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
+    if (!setup?.logsChannelId) return;
+    await reply(setup.logsChannelId as ChannelGuid, "📋 **Audit log**\\n" + message.slice(0, 1500));
+  } catch (error) { console.error("Could not write audit log:", error); }
+}
+async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   if (evt.messageType !== MessageType.UserMessage) return;
 
   const args = parseCommand(evt.messageContent);

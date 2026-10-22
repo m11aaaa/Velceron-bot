@@ -2,10 +2,14 @@
   "id": "ADIGVZUohQma-_hF4cxcBA",
   "version": "1.0.0",
   "package": {
+    "client": {
+      "deploy": "client/dist"
+    },
     "server": {
-      "launch": "dist/main.js",
+      "launch": "server/dist/main.js",
       "deploy": [
-        "dist"
+        "server/dist",
+        "networking/gen/server"
       ],
       "nodeModules": [
         "node_modules"

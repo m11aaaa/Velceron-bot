@@ -6,6 +6,10 @@ import {
   ChannelGuid,
   UserGuid,
   MessageType,
+  CommunityMemberBanEvent,
+  CommunityMemberBanCreatedEvent,
+  CommunityMemberBanDeletedEvent,
+  UserGuid as ModerationUserGuid,
 } from "@rootsdk/server-app";
 
 type TicketSettings = {
@@ -67,6 +71,9 @@ const HELP_TEXT = [
   "`/staff role add <role-id>` / `/staff role remove <role-id>`",
   "`/staff member add <user-id>` / `/staff member remove <user-id>`",
   "`/staff save` — apply access changes",
+  "`/moderation ban <user-id> [reason]` — ban a member",
+  "`/moderation kick <user-id>` — remove a member without banning",
+  "`/moderation unban <user-id>` — remove an active ban (the user must rejoin)",
   "`/ticket open` — create a private support ticket",
   "`/ticket close` — close a ticket and create a transcript",
   "`/ticket` — view the ticket settings",
@@ -312,6 +319,45 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         return;
       }
 
+      case "moderation": {
+        const settings = await loadSettings();
+        if (!settings.modules.moderation) {
+          await reply(evt.channelId, "The moderation module is disabled. A community manager can enable it in the Velceron settings.");
+          return;
+        }
+        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
+          await reply(evt.channelId, "Only the setup owner, community managers, or configured staff can use moderation commands.");
+          return;
+        }
+        const action = (args[1] ?? "").toLowerCase();
+        const targetId = (args[2] ?? "").trim();
+        if (!["ban", "kick", "unban"].includes(action) || !targetId) {
+          await reply(evt.channelId, "Usage: `/moderation ban <user-id> [reason]`, `/moderation kick <user-id>`, or `/moderation unban <user-id>`.");
+          return;
+        }
+        try {
+          if (action === "ban") {
+            const reason = args.slice(3).join(" ").trim().slice(0, 256) || "No reason provided";
+            await rootServer.community.communityMemberBans.create({ userId: targetId as ModerationUserGuid, reason });
+            await reply(evt.channelId, "Member banned. Reason: " + reason);
+            await logTechnicalError("Moderation action: ban; user " + targetId + "; by " + evt.userId + "; reason: " + reason);
+          } else if (action === "kick") {
+            await rootServer.community.communityMemberBans.kick({ userId: targetId as ModerationUserGuid });
+            await reply(evt.channelId, "Member kicked. They can rejoin with an invite.");
+            await logTechnicalError("Moderation action: kick; user " + targetId + "; by " + evt.userId);
+          } else {
+            await rootServer.community.communityMemberBans.delete({ userId: targetId as ModerationUserGuid });
+            await reply(evt.channelId, "Ban removed. The member must rejoin using an invite.");
+            await logTechnicalError("Moderation action: unban; user " + targetId + "; by " + evt.userId);
+          }
+        } catch (error) {
+          console.error("Moderation action failed:", error);
+          await reply(evt.channelId, "That moderation action failed. Check the target ID and make sure Velceron has the required community permission.");
+          await logTechnicalError("Moderation action failed for " + targetId + ": " + String(error));
+        }
+        return;
+      }
+
       case "ticket":
       case "tickets": {
         if (subcommand === "open") { await createTicket(evt.channelId, evt.userId); return; }
@@ -548,6 +594,18 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
 }
 
 export async function initialize(): Promise<void> {
+  rootServer.community.communityMemberBans.on(
+    CommunityMemberBanEvent.CommunityMemberBanCreated,
+    (evt: CommunityMemberBanCreatedEvent) => {
+      void logTechnicalError("Ban created for " + evt.userId + "; reason: " + (evt.reason ?? "not provided"));
+    }
+  );
+  rootServer.community.communityMemberBans.on(
+    CommunityMemberBanEvent.CommunityMemberBanDeleted,
+    (evt: CommunityMemberBanDeletedEvent) => {
+      void logTechnicalError("Ban removed for " + evt.userId);
+    }
+  );
   rootServer.community.channelMessages.on(
     ChannelMessageEvent.ChannelMessageCreated,
     (evt: ChannelMessageCreatedEvent) => {

@@ -18,7 +18,10 @@
   },
   "permissions": {
     "community": {
-      "fullControl": true
+      "createChannelGroup": true,
+      "createBan": true,
+      "manageBans": true,
+      "kick": true
     },
     "channel": {
       "fullControl": true

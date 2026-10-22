@@ -113,8 +113,8 @@ async function loadDraft(settings: BotSettings): Promise<TicketSettings> {
 
 async function isCommunityManager(userId: UserGuid): Promise<boolean> {
   try {
-    const community = await rootServer.community.get();
-    if ((community as any)?.ownerUserId === userId) return true;
+    const community = await rootServer.community.communities.get();
+    if (community.ownerUserId === userId) return true;
     const member = await rootServer.community.communityMembers.get({ userId });
     const roles = await rootServer.community.communityRoles.list();
     const memberRoleIds = new Set<string>(member.communityRoleIds);

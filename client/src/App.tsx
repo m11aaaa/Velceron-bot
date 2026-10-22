@@ -34,9 +34,9 @@ export default function App() {
       <div className="section-heading"><div><h2>Modules</h2><p>Turn features on or off for your community.</p></div><span className="pill">4 MODULES</span></div>
       <div className="module-grid">
         <article className="module-card"><div className="module-icon purple">▣</div><div><h3>Support tickets</h3><p>Private member support and ticket transcripts.</p></div>{toggle("tickets","Enabled")}</article>
-        <article className="module-card"><div className="module-icon blue">⌁</div><div><h3>Moderation</h3><p>Moderation module switch.</p></div>{toggle("moderation","Enabled")}</article>
+        <article className="module-card"><div className="module-icon blue">⌁</div><div><h3>Moderation</h3><p>Ban, kick, and unban members with community permissions.</p></div>{toggle("moderation","Enabled")}</article>
         <article className="module-card"><div className="module-icon orange">✦</div><div><h3>Welcome messages</h3><p>Welcome feature switch.</p></div>{toggle("welcome","Enabled")}</article>
-        <article className="module-card"><div className="module-icon green">≡</div><div><h3>Logs</h3><p>Community and ticket logging module.</p></div>{toggle("logs","Enabled")}</article>
+        <article className="module-card"><div className="module-icon green">≡</div><div><h3>Logs</h3><p>Ticket and moderation audit logs plus technical errors.</p></div>{toggle("logs","Enabled")}</article>
       </div>
       <div className="section-heading"><div><h2>Ticket template</h2><p>Customize what members see when opening a ticket.</p></div><span className="pill">CUSTOMIZABLE</span></div>
       <div className="panel"><div className="fields"><label>Panel title<input value={settings.ticketTitle} maxLength={120} onChange={e=>set("ticketTitle",e.target.value)} /></label><label>Button text<input value={settings.ticketButtonText} maxLength={80} onChange={e=>set("ticketButtonText",e.target.value)} /></label><label className="wide">Description<textarea value={settings.ticketDescription} maxLength={1000} rows={3} onChange={e=>set("ticketDescription",e.target.value)} /></label><label className="wide">Transcript log channel ID <input value={settings.logChannelId} placeholder="Optional channel ID" onChange={e=>set("logChannelId",e.target.value)} /><small>Used when transcript delivery to logs is enabled.</small></label></div>

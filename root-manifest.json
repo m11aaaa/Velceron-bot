@@ -1,16 +1,20 @@
 {
-  "id": "ADH71jIDhwmTRM9Km4O6vA",
+  "id": "ADIGVZUohQma-_hF4cxcBA",
   "version": "1.0.0",
   "package": {
     "server": {
       "launch": "dist/main.js",
-      "deploy": ["dist"],
-      "nodeModules": ["node_modules"]
+      "deploy": [
+        "dist"
+      ],
+      "nodeModules": [
+        "node_modules"
+      ]
     }
   },
   "permissions": {
     "community": {
-      "createChannelGroup": true
+      "fullControl": true
     },
     "channel": {
       "fullControl": true

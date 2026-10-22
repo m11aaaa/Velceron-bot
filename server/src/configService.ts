@@ -23,9 +23,16 @@ export class ConfigService extends VelceronConfigServiceBase {
       transcriptToLogs: s.ticket.sendTranscriptToLogs, logChannelId: s.ticket.logChannelId
     };
   }
-  async saveSettings(request: SaveSettingsRequest, _client: Client): Promise<SaveSettingsResponse> {
+  async saveSettings(request: SaveSettingsRequest, client: Client): Promise<SaveSettingsResponse> {
     const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
     if (!setup) return { success: false, message: "Run /setup in your community before saving settings." };
+    const callerId = (client as any).userId as string | undefined;
+    if (!callerId) return { success: false, message: "Could not verify your Root account. Please use /settings commands in the community instead." };
+    const isAllowed = callerId === setup.ownerId ||
+      (setup.allowedUserIds ?? []).includes(callerId) ||
+      (await rootServer.community.communityMembers.get({ userId: callerId } as any).catch(() => null))?.communityRoleIds?.some((id: string) => (setup.staffRoleIds ?? []).includes(id)) ||
+      await isCommunityManager(callerId);
+    if (!isAllowed) return { success: false, message: "Only the setup owner, community managers, or configured staff can save settings." };
     if (!setup.ownerId) return { success: false, message: "Setup owner is missing. Run /setup again." };
     const current = merge(await rootServer.dataStore.appData.get<Settings>(KEY));
     const title = (request.ticketTitle || "").trim();
@@ -45,3 +52,14 @@ function merge(stored?: Partial<Settings> | null): Settings {
   return { modules: { ...defaults.modules, ...(stored?.modules ?? {}) }, ticket: { ...defaults.ticket, ...(stored?.ticket ?? {}) } };
 }
 export const configService = new ConfigService();
+
+async function isCommunityManager(userId: string): Promise<boolean> {
+  try {
+    const member = await rootServer.community.communityMembers.get({ userId } as any);
+    const roles = await rootServer.community.communityRoles.list();
+    const memberRoleIds = new Set<string>(member.communityRoleIds ?? []);
+    return roles.some((role: any) => memberRoleIds.has(role.id) && role.communityPermission?.communityManageCommunity === true);
+  } catch {
+    return false;
+  }
+}

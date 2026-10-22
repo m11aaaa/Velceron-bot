@@ -1,0 +1,13 @@
+{
+  "source": [
+    "./**/*.proto"
+  ],
+  "protoPaths": [
+    "./src"
+  ],
+  "outputFolder": "./gen",
+  "scope": "@velceron",
+  "clientPackageName": "gen-client",
+  "serverPackageName": "gen-server",
+  "sharedPackageName": "gen-shared"
+}

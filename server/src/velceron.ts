@@ -6,6 +6,10 @@ import {
   ChannelGuid,
   UserGuid,
   MessageType,
+  CommunityEvent,
+  CommunityJoinedEvent,
+  RootGuidUtils,
+  RootGuidType,
   CommunityMemberBanEvent,
   CommunityMemberBanCreatedEvent,
   CommunityMemberBanDeletedEvent,
@@ -20,6 +24,8 @@ type TicketSettings = {
   sendTranscriptToCreator: boolean;
   sendTranscriptToLogs: boolean;
   logChannelId: string;
+  welcomeMessage: string;
+  welcomeChannelId: string;
 };
 
 type BotSettings = {
@@ -46,6 +52,8 @@ const DEFAULT_SETTINGS: BotSettings = {
     sendTranscriptToCreator: true,
     sendTranscriptToLogs: false,
     logChannelId: "",
+    welcomeMessage: "Welcome {user} to {community}!",
+    welcomeChannelId: "",
   },
 };
 
@@ -74,6 +82,7 @@ const HELP_TEXT = [
   "`/moderation ban <user-id> [reason]` — ban a member",
   "`/moderation kick <user-id>` — remove a member without banning",
   "`/moderation unban <user-id>` — remove an active ban (the user must rejoin)",
+  "`/welcome` — show welcome message setup guidance",
   "`/ticket open` — create a private support ticket",
   "`/ticket close` — close a ticket and create a transcript",
   "`/ticket` — view the ticket settings",
@@ -574,6 +583,18 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
         return;
       }
 
+      case "welcome": {
+        const settings = await loadSettings();
+        if (!await isStaffOrOwner(evt.userId, await rootServer.dataStore.appData.get<any>("velceron.setup.v1"))) {
+          await reply(evt.channelId, "Only the setup owner, community managers, or configured staff can view welcome settings.");
+          return;
+        }
+        await reply(evt.channelId, "**Welcome messages**\nStatus: " + (settings.modules.welcome ? "ON" : "OFF") +
+          "\nChannel ID: " + (settings.ticket.welcomeChannelId || "not set") +
+          "\nMessage: " + settings.ticket.welcomeMessage +
+          "\n\nEdit the message and channel in the Velceron app settings, then click Save.");
+        return;
+      }
       case "logs": {
         const setup = await rootServer.dataStore.appData.get<any>("velceron.setup.v1");
         await reply(evt.channelId, setup?.logsChannelId ? "Technical errors are posted in [velceron-logs](root://channel/" + setup.logsChannelId + ")." : "Run /setup to create the private technical logs channel.");
@@ -593,7 +614,32 @@ async function handleMessage(evt: ChannelMessageCreatedEvent): Promise<void> {
   }
 }
 
+async function handleCommunityJoined(evt: CommunityJoinedEvent): Promise<void> {
+  try {
+    const guidType = RootGuidUtils.toRootGuidType(evt.userId);
+    if (guidType !== RootGuidType.Person) return;
+    const settings = await loadSettings();
+    if (!settings.modules.welcome) return;
+    const channelId = settings.ticket.welcomeChannelId.trim();
+    if (!channelId) {
+      await logTechnicalError("Welcome messages are enabled, but no welcome channel is configured in the app settings.");
+      return;
+    }
+    const community = await rootServer.community.communities.get();
+    const message = settings.ticket.welcomeMessage
+      .replace(/\\{user\\}/g, "[New member](root://user/" + evt.userId + ")")
+      .replace(/\\{community\\}/g, community.name);
+    await reply(channelId as ChannelGuid, message.slice(0, 1800));
+  } catch (error) {
+    console.error("Welcome message failed:", error);
+    await logTechnicalError("Welcome message failed: " + String(error));
+  }
+}
+
 export async function initialize(): Promise<void> {
+  rootServer.community.communities.on(CommunityEvent.CommunityJoined, (evt: CommunityJoinedEvent) => {
+    void handleCommunityJoined(evt);
+  });
   rootServer.community.communityMemberBans.on(
     CommunityMemberBanEvent.CommunityMemberBanCreated,
     (evt: CommunityMemberBanCreatedEvent) => {

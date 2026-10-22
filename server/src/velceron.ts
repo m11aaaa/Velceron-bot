@@ -248,7 +248,7 @@ async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<vo
       const safeTranscript = transcript.replace(/```/g, "[code fence]");
       for (let offset = 0; offset < safeTranscript.length; offset += 1600) {
         const part = safeTranscript.slice(offset, offset + 1600);
-        await reply(logId as ChannelGuid, "```text\n" + part + "\\n```");
+        await reply(logId as ChannelGuid, "```text\n" + part + "\n```");
       }
     } else await logTechnicalError("Transcript-to-logs is enabled but no log channel is configured.");
   }

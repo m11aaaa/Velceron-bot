@@ -627,8 +627,8 @@ async function handleCommunityJoined(evt: CommunityJoinedEvent): Promise<void> {
     }
     const community = await rootServer.community.communities.get();
     const message = settings.ticket.welcomeMessage
-      .replace(/\\{user\\}/g, "[New member](root://user/" + evt.userId + ")")
-      .replace(/\\{community\\}/g, community.name);
+      .replace(/\{user\}/g, "[New member](root://user/" + evt.userId + ")")
+      .replace(/\{community\}/g, community.name);
     await reply(channelId as ChannelGuid, message.slice(0, 1800));
   } catch (error) {
     console.error("Welcome message failed:", error);

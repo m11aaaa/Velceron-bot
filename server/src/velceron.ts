@@ -244,27 +244,37 @@ async function closeTicket(channelId: ChannelGuid, userId: UserGuid): Promise<vo
   const settings = await loadSettings();
   if (settings.ticket.sendTranscriptToLogs) {
     const logId = settings.ticket.logChannelId || setup?.logsChannelId;
-    if (logId) await reply(logId as ChannelGuid, "```text\n" + transcript.replace(/```/g, "'''") + "\n```");
-    else await logTechnicalError("Transcript-to-logs is enabled but no log channel is configured.");
+    if (logId) {
+      const safeTranscript = transcript.replace(/```/g, "[code fence]");
+      for (let offset = 0; offset < safeTranscript.length; offset += 1600) {
+        const part = safeTranscript.slice(offset, offset + 1600);
+        await reply(logId as ChannelGuid, "```text\\n" + part + "\\n```");
+      }
+    } else await logTechnicalError("Transcript-to-logs is enabled but no log channel is configured.");
   }
   if (settings.ticket.sendTranscriptToCreator) {
     try {
       await rootServer.community.notifications.send({
-        title: "Your ticket transcript",
+        title: "Your ticket is closed",
         description: "Your ticket is closed. You can still view the transcript in the ticket channel.",
         userIds: [ticket.creatorId as UserGuid],
       });
-    } catch (error) { console.error("Ticket transcript notification failed:", error); }
-  }
-  try {
-    await rootServer.community.accessRules.edit({
-      channelOrChannelGroupId: channelId,
-      roleOrMemberId: ticket.creatorId,
-      overlay: { channelView: true, channelCreateMessage: false, channelViewMessageHistory: true },
-    } as any);
-  } catch (error) {
-    console.error("Could not revoke creator access to closed ticket:", error);
-    await logTechnicalError("Could not revoke creator access to closed ticket " + channelId + ": " + String(error));
+      await rootServer.community.accessRules.edit({
+        channelOrChannelGroupId: channelId,
+        roleOrMemberId: ticket.creatorId,
+        overlay: { channelView: true, channelCreateMessage: false, channelViewMessageHistory: true },
+      } as any);
+    } catch (error) {
+      console.error("Ticket transcript delivery or lock failed:", error);
+      await logTechnicalError("Ticket transcript delivery or lock failed for " + channelId + ": " + String(error));
+    }
+  } else {
+    try {
+      await rootServer.community.accessRules.delete({ channelOrChannelGroupId: channelId, roleOrMemberId: ticket.creatorId } as any);
+    } catch (error) {
+      console.error("Could not remove creator from closed ticket:", error);
+      await logTechnicalError("Could not remove creator from closed ticket " + channelId + ": " + String(error));
+    }
   }
 }
 

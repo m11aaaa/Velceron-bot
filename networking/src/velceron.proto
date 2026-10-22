@@ -1,0 +1,35 @@
+syntax = "proto3";
+import "rootsdk/types.proto";
+
+message GetSettingsRequest {}
+message GetSettingsResponse {
+  bool tickets = 1;
+  bool moderation = 2;
+  bool welcome = 3;
+  bool logs = 4;
+  string ticketTitle = 5;
+  string ticketDescription = 6;
+  string ticketButtonText = 7;
+  bool pingStaff = 8;
+  bool transcriptToCreator = 9;
+  bool transcriptToLogs = 10;
+  string logChannelId = 11;
+}
+message SaveSettingsRequest {
+  bool tickets = 1;
+  bool moderation = 2;
+  bool welcome = 3;
+  bool logs = 4;
+  string ticketTitle = 5;
+  string ticketDescription = 6;
+  string ticketButtonText = 7;
+  bool pingStaff = 8;
+  bool transcriptToCreator = 9;
+  bool transcriptToLogs = 10;
+  string logChannelId = 11;
+}
+message SaveSettingsResponse { bool success = 1; string message = 2; }
+service VelceronConfigService {
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsResponse);
+}

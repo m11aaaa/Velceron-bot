@@ -1,35 +1,19 @@
 syntax = "proto3";
+package velceron;
 import "rootsdk/types.proto";
-
 message GetSettingsRequest {}
 message GetSettingsResponse {
-  bool tickets = 1;
-  bool moderation = 2;
-  bool welcome = 3;
-  bool logs = 4;
-  string ticketTitle = 5;
-  string ticketDescription = 6;
-  string ticketButtonText = 7;
-  bool pingStaff = 8;
-  bool transcriptToCreator = 9;
-  bool transcriptToLogs = 10;
-  string logChannelId = 11;
+ bool tickets = 1; bool moderation = 2; bool welcome = 3; bool logs = 4;
+ string ticket_title = 5; string ticket_description = 6; string ticket_button_text = 7;
+ bool ping_staff = 8; bool transcript_to_creator = 9; bool transcript_to_logs = 10; string log_channel_id = 11;
 }
 message SaveSettingsRequest {
-  bool tickets = 1;
-  bool moderation = 2;
-  bool welcome = 3;
-  bool logs = 4;
-  string ticketTitle = 5;
-  string ticketDescription = 6;
-  string ticketButtonText = 7;
-  bool pingStaff = 8;
-  bool transcriptToCreator = 9;
-  bool transcriptToLogs = 10;
-  string logChannelId = 11;
+ bool tickets = 1; bool moderation = 2; bool welcome = 3; bool logs = 4;
+ string ticket_title = 5; string ticket_description = 6; string ticket_button_text = 7;
+ bool ping_staff = 8; bool transcript_to_creator = 9; bool transcript_to_logs = 10; string log_channel_id = 11;
 }
 message SaveSettingsResponse { bool success = 1; string message = 2; }
 service VelceronConfigService {
-  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
-  rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsResponse);
+ rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+ rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsResponse);
 }
